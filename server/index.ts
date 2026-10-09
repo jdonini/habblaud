@@ -32,6 +32,9 @@ import { ClaudeWatcher } from './sources/watcher';
 import { discoverCodexDirs } from './sources/codex/accounts';
 import { CodexHistory } from './sources/codex/history';
 import { CodexSource } from './sources/codex/source';
+import { discoverAntigravityDir } from './sources/antigravity/files';
+import { AntigravitySource } from './sources/antigravity/source';
+import { findUsagebarBin, UsagebarService } from './accounts/usagebar';
 import { createBuildReader } from './build';
 import { UpdateChecker } from './updates/checker';
 
@@ -91,6 +94,9 @@ const agents = new SourceSet([claude]);
 const codexDirs = config.codex ? discoverCodexDirs(process.env, config.home) : [];
 const codex = codexDirs.length ? new CodexSource({ accounts, office, dirs: codexDirs, env: process.env, home: config.home }) : undefined;
 if (codex) agents.add(codex);
+const antigravityDir = config.antigravity ? discoverAntigravityDir(process.env, config.home) : undefined;
+const antigravity = antigravityDir ? new AntigravitySource({ accounts, office, dir: antigravityDir, home: config.home }) : undefined;
+if (antigravity) agents.add(antigravity);
 // Eventos dos hooks do Codex (POST /api/codex/events, mod/habblaud-codex/hook.mjs): vão para a fonte do Codex ao vivo
 // (CodexLive); sem ela (nenhuma pasta do Codex ou HABBLAUD_CODEX=0) a rota responde {ok: false}.
 const codexLive: CodexLive | undefined = codex;
@@ -145,11 +151,14 @@ const messages = config.messages
     })
   : undefined;
 late.messages = messages;
+const usagebarBin = !config.inDocker ? findUsagebarBin(process.env) : undefined;
+const usagebar = usagebarBin ? new UsagebarService(usagebarBin, config.usageDir, config.home) : undefined;
 
 if (config.demo) office.setDemo(true);
 // As fontes síncronas (a do Claude Code) terminam o boot aqui, antes de o hub começar a transmitir.
 void agents.start();
 accounts.start();
+usagebar?.start();
 hub.start();
 if (timeline) {
   timeline.start();
@@ -257,6 +266,8 @@ server.listen(config.port, config.host, () => {
   } else {
     log.info(`   Codex: ${config.codex ? 'nenhuma pasta do Codex encontrada (defina HABBLAUD_CODEX_DIRS)' : 'desligado (HABBLAUD_CODEX=0)'}.`);
   }
+  if (antigravityDir) log.info(`   Antigravity: sessões observadas em ${antigravityDir}.`);
+  if (usagebar) log.info(`   Cotas: sincronização ativa via ai-usagebar (${usagebarBin}).`);
   if (office.isDemo()) log.info('   Modo demonstração ligado (agentes simulados misturados aos reais).');
   if (config.terminal) log.info('   Terminal: ligado (acesso só local).');
   else log.info(`   Terminal: desligado (${terminalOffReason(process.env, config.host, config.inDocker)}).`);
@@ -290,6 +301,7 @@ function shutdown(signal: string): void {
   log.info(`Encerrando (${signal})…`);
   clearInterval(ticker);
   stats.stop();
+  usagebar?.stop();
   agents.stop();
   accounts.stop();
   hub.stop();

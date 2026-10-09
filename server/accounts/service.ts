@@ -101,7 +101,7 @@ export class AccountsService {
       return;
     }
     let changed = false;
-    for (const e of this.list_) {
+    for (const e of this.allEntries()) {
       const mine = files.filter((f) => this.fileMatches(e, f));
       const best = mine.reduce<StatuslineUsage | undefined>((acc, f) => (!acc || f.usage.fetchedAt > acc.usage.fetchedAt ? f : acc), undefined);
       if (best) changed = this.usage.set(e.id, best.usage) || changed;
@@ -116,7 +116,7 @@ export class AccountsService {
       const dir = resolve(f.configDir);
       if (dir === resolve(e.detected.configDir) || dir === resolve(e.dir)) return true;
       // Mesmo nome de pasta mas caminho diferente: só vale se nenhuma outra conta tiver esse caminho.
-      if (this.list_.some((o) => resolve(o.detected.configDir) === dir || resolve(o.dir) === dir)) return false;
+      if (this.allEntries().some((o) => resolve(o.detected.configDir) === dir || resolve(o.dir) === dir)) return false;
       return basename(dir) === e.id;
     }
     return !!f.accountId && f.accountId === e.id;
