@@ -95,7 +95,7 @@ const codexDirs = config.codex ? discoverCodexDirs(process.env, config.home) : [
 const codex = codexDirs.length ? new CodexSource({ accounts, office, dirs: codexDirs, env: process.env, home: config.home }) : undefined;
 if (codex) agents.add(codex);
 const antigravityDir = config.antigravity ? discoverAntigravityDir(process.env, config.home) : undefined;
-const antigravity = antigravityDir ? new AntigravitySource({ accounts, office, dir: antigravityDir, home: config.home }) : undefined;
+const antigravity = antigravityDir ? new AntigravitySource({ accounts, office, dir: antigravityDir, home: config.home, permissions: () => late.permissions }) : undefined;
 if (antigravity) agents.add(antigravity);
 // Eventos dos hooks do Codex (POST /api/codex/events, mod/habblaud-codex/hook.mjs): vão para a fonte do Codex ao vivo
 // (CodexLive); sem ela (nenhuma pasta do Codex ou HABBLAUD_CODEX=0) a rota responde {ok: false}.

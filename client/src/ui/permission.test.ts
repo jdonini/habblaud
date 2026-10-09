@@ -97,8 +97,9 @@ describe('cartão de pergunta (AskUserQuestion)', () => {
   const multi: AskQuestion = { index: 2, question: 'Quais testes rodar?', multiSelect: true, options: [{ index: 0, label: 'Unidade' }, { index: 1, label: 'E2E' }] };
   const choice = (options: number[], otherOn = false, otherText = ''): AskChoice => ({ options, otherOn, otherText });
 
-  it('isQuestionRequest: só AskUserQuestion com perguntas', () => {
+  it('isQuestionRequest: AskUserQuestion ou ask_question com perguntas', () => {
     expect(isQuestionRequest({ tool: 'AskUserQuestion', questions: [single] })).toBe(true);
+    expect(isQuestionRequest({ tool: 'ask_question', questions: [single] })).toBe(true);
     expect(isQuestionRequest({ tool: 'AskUserQuestion', questions: [] })).toBe(false);
     expect(isQuestionRequest({ tool: 'Bash' })).toBe(false);
     expect(isQuestionRequest(undefined)).toBe(false);

@@ -17,6 +17,7 @@ export interface UsagebarEntry {
   brand?: string;
   fetched_at?: string;
   metrics?: UsagebarMetric[];
+  plan?: string;
 }
 
 export interface UsagebarOutput {
@@ -101,6 +102,10 @@ export function parseAiUsagebarJson(raw: string, home: string): Record<string, u
       fetchedAt,
       source: 'ai-usagebar',
     };
+
+    if (entry.plan) {
+      payload.plan = entry.plan;
+    }
 
     if (fiveHourMetric && typeof fiveHourMetric.percent === 'number') {
       const resetsAtSec = fiveHourMetric.reset_at ? Math.floor(new Date(fiveHourMetric.reset_at).getTime() / 1000) : 0;

@@ -46,9 +46,9 @@ export class TopBar implements UiComponent {
   readonly panelGroup: HTMLElement;
 
   constructor(private ctx: UiContext) {
-    // Marca: usa o logo do projeto se existir; senão, o prédio em pixels.
+    // Marca: usa o estádio do Palestra Itália; senão, o estádio em pixels.
     const mark = h('span', { class: 'ui-brand__mark' });
-    const logo = h('img', { attrs: { src: '/assets/brand/logo-mark.png', srcset: '/assets/brand/logo-mark@4x.png 4x', alt: '', width: 32, height: 32, draggable: 'false' } });
+    const logo = h('img', { attrs: { src: '/assets/brand/stadium.svg', alt: 'Palestra Itália', width: 32, height: 32, draggable: 'false' } });
     logo.addEventListener('error', () => {
       mark.innerHTML = FALLBACK_MARK;
     });
@@ -158,7 +158,7 @@ export class TopBar implements UiComponent {
         ? 'Dados simulados no navegador (?mock=1)'
         : conn === 'open'
           ? 'Recebendo eventos do servidor em tempo real'
-          : 'Sem conexão com o servidor do Habblaud',
+          : 'Sem conexão com o servidor do Palestra Itália',
     );
     setHidden(this.demoBadge, !(conn === 'open' && snap?.meta.demo));
 

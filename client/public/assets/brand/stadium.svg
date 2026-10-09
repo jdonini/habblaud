@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="fieldGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00a859" />
+      <stop offset="100%" stop-color="#006437" />
+    </radialGradient>
+    <linearGradient id="standGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#c8e6c9" />
+    </linearGradient>
+  </defs>
+  <!-- Estrutura Externa do Estádio / Arquibancadas Ovaladas -->
+  <ellipse cx="32" cy="32" rx="30" ry="24" fill="#0b2416" stroke="#004d26" stroke-width="2"/>
+  <ellipse cx="32" cy="31" rx="28" ry="22" fill="url(#standGrad)"/>
+  <ellipse cx="32" cy="32" rx="25" ry="19" fill="#006437"/>
+  <ellipse cx="32" cy="32" rx="22" ry="16" fill="#e8f5e9"/>
+  <!-- Gramado do Estádio Palestra Itália -->
+  <ellipse cx="32" cy="32" rx="19" ry="13" fill="url(#fieldGrad)"/>
+  <!-- Linhas do Campo de Futebol -->
+  <line x1="32" y1="19" x2="32" y2="45" stroke="#ffffff" stroke-width="1.2" opacity="0.9"/>
+  <circle cx="32" cy="32" r="4.5" fill="none" stroke="#ffffff" stroke-width="1.2" opacity="0.9"/>
+  <circle cx="32" cy="32" r="1" fill="#ffffff"/>
+  <!-- Áreas dos Gols -->
+  <path d="M 14,28 A 4 4 0 0 1 14,36" fill="none" stroke="#ffffff" stroke-width="1.2" opacity="0.9"/>
+  <path d="M 50,28 A 4 4 0 0 0 50,36" fill="none" stroke="#ffffff" stroke-width="1.2" opacity="0.9"/>
+  <!-- Holofotes nos Cantos -->
+  <circle cx="10" cy="18" r="2" fill="#fac665" stroke="#0b2416" stroke-width="1"/>
+  <circle cx="54" cy="18" r="2" fill="#fac665" stroke="#0b2416" stroke-width="1"/>
+  <circle cx="10" cy="46" r="2" fill="#fac665" stroke="#0b2416" stroke-width="1"/>
+  <circle cx="54" cy="46" r="2" fill="#fac665" stroke="#0b2416" stroke-width="1"/>
+</svg>

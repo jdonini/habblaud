@@ -5,6 +5,7 @@ import type { AgentStatus, SourceInfo } from '../../../shared/types';
 import type { AccountsService } from '../../accounts/service';
 import { log } from '../../log';
 import type { Office } from '../../model/office';
+import type { PermissionRegistry } from '../../permissions/registry';
 import type { AgentSource } from '../source';
 import { FileTail } from '../tail';
 import { activeConversationIds, antigravityTranscriptPath, readWorkspacesFromHistory } from './files';
@@ -18,6 +19,8 @@ interface ActiveTracker {
   tail?: FileTail;
   status: AgentStatus;
   waitingFor?: string;
+  activeSubagents: Set<string>;
+  pendingQuestionId?: string;
 }
 
 export interface AntigravitySourceOptions {
@@ -26,6 +29,7 @@ export interface AntigravitySourceOptions {
   dir: string;
   home?: string;
   pollMs?: number;
+  permissions?: () => PermissionRegistry | undefined;
 }
 
 export class AntigravitySource implements AgentSource {
@@ -49,6 +53,11 @@ export class AntigravitySource implements AgentSource {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = undefined;
+    }
+    for (const tracker of this.trackers.values()) {
+      if (tracker.pendingQuestionId) {
+        this.opts.permissions?.()?.cancelSynthetic(tracker.pendingQuestionId, 'shutdown');
+      }
     }
   }
 
@@ -85,6 +94,7 @@ export class AntigravitySource implements AgentSource {
           configDir: this.opts.dir,
           short: 'G',
           name: 'Antigravity',
+          plan: 'Google AI Pro',
           color: '#a77bf3',
         },
       },
@@ -118,6 +128,7 @@ export class AntigravitySource implements AgentSource {
             agentId,
             workspace,
             status: 'working',
+            activeSubagents: new Set(),
           };
 
           if (existsSync(tPath)) {
@@ -149,10 +160,69 @@ export class AntigravitySource implements AgentSource {
               for (const act of parsed.activities) {
                 this.opts.office.addActivity(agentId, act);
               }
+
+              // Subagentes visuais
+              if (parsed.subagents && parsed.subagents.length > 0) {
+                for (const sub of parsed.subagents) {
+                  const ok = this.opts.office.addSub({
+                    id: sub.id,
+                    parentId: agentId,
+                    sessionId: tracker.conversationId,
+                    role: sub.role,
+                    title: sub.title,
+                    background: false,
+                    startedAt: Date.now(),
+                  });
+                  if (ok) {
+                    tracker.activeSubagents.add(sub.id);
+                  }
+                }
+              }
+
+              if (parsed.subagentsDone && tracker.activeSubagents.size > 0) {
+                for (const subId of tracker.activeSubagents) {
+                  this.opts.office.completeSub(subId);
+                }
+                tracker.activeSubagents.clear();
+              }
+
+              // Perguntas interativas (ask_question)
+              if (parsed.question && this.opts.permissions) {
+                const permReg = this.opts.permissions();
+                if (permReg) {
+                  if (tracker.pendingQuestionId) {
+                    permReg.cancelSynthetic(tracker.pendingQuestionId);
+                    tracker.pendingQuestionId = undefined;
+                  }
+                  const qInfo = parsed.question;
+                  const firstQ = qInfo.questions[0]?.question || 'Pergunta';
+                  const permId = permReg.registerSynthetic({
+                    agentId,
+                    sessionId: convId,
+                    tool: 'ask_question',
+                    title: 'Pergunta interativa',
+                    text: firstQ,
+                    icon: '❓',
+                    provider: 'antigravity',
+                    questions: qInfo.questions,
+                    timeoutMs: 300_000,
+                    onDecision: (d) => {
+                      log.info(`Antigravity pergunta respondida na interface para ${agentId}: ${JSON.stringify(d)}`);
+                      tracker.pendingQuestionId = undefined;
+                    },
+                  });
+                  tracker.pendingQuestionId = permId;
+                }
+              }
+
               if (parsed.status && parsed.status !== tracker.status) {
                 tracker.status = parsed.status;
                 tracker.waitingFor = parsed.waitingFor;
-                this.opts.office.updateStatus(agentId, parsed.status, parsed.waitingFor);
+                if (tracker.pendingQuestionId && parsed.status !== 'waiting') {
+                  this.opts.permissions?.()?.cancelSynthetic(tracker.pendingQuestionId);
+                  tracker.pendingQuestionId = undefined;
+                }
+                this.opts.office.setStatus(agentId, parsed.status, parsed.waitingFor);
               }
             }
           }
@@ -162,7 +232,15 @@ export class AntigravitySource implements AgentSource {
       // 2. Encerrar sessões que não estão mais ativas
       for (const [agentId, tracker] of this.trackers.entries()) {
         if (!activeIds.has(tracker.conversationId)) {
-          this.opts.office.updateStatus(agentId, 'offline');
+          if (tracker.pendingQuestionId) {
+            this.opts.permissions?.()?.cancelSynthetic(tracker.pendingQuestionId, 'gone');
+            tracker.pendingQuestionId = undefined;
+          }
+          for (const subId of tracker.activeSubagents) {
+            this.opts.office.completeSub(subId, { notify: false });
+          }
+          tracker.activeSubagents.clear();
+          this.opts.office.closeMain(agentId);
           this.trackers.delete(agentId);
         }
       }

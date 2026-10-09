@@ -102,7 +102,12 @@ describe('Antigravity transcript parsing', () => {
         {
           name: 'ask_question',
           args: {
-            questions: [{ question: 'Deseja continuar com o deploy?' }],
+            questions: [
+              {
+                question: 'Deseja continuar com o deploy?',
+                options: ['Sim, executar agora', 'Não, abortar'],
+              },
+            ],
           },
         },
       ],
@@ -113,6 +118,37 @@ describe('Antigravity transcript parsing', () => {
     expect(parsed!.waitingFor).toBe('Deseja continuar com o deploy?');
     expect(parsed!.activities.length).toBe(1);
     expect(parsed!.activities[0].kind).toBe('ask');
+    expect(parsed!.question).toBeDefined();
+    expect(parsed!.question!.questions.length).toBe(1);
+    expect(parsed!.question!.questions[0].options.length).toBe(2);
+    expect(parsed!.question!.questions[0].options[0].label).toBe('Sim, executar agora');
+  });
+
+  it('detecta invoke_subagent e extrai subagentes corretamente', () => {
+    const line = JSON.stringify({
+      step_index: 3,
+      source: 'MODEL',
+      type: 'PLANNER_RESPONSE',
+      tool_calls: [
+        {
+          name: 'invoke_subagent',
+          args: {
+            Subagents: [
+              {
+                Role: 'Codebase Researcher',
+                Prompt: 'Pesquise a API no código',
+              },
+            ],
+          },
+        },
+      ],
+    });
+    const parsed = parseAntigravityLine(line, 'conv-1');
+    expect(parsed).toBeDefined();
+    expect(parsed!.subagents).toBeDefined();
+    expect(parsed!.subagents!.length).toBe(1);
+    expect(parsed!.subagents![0].role).toBe('Codebase Researcher');
+    expect(parsed!.activities[0].kind).toBe('delegate');
   });
 });
 

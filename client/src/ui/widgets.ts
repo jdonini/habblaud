@@ -128,10 +128,10 @@ export function updateShellActivityLine(el: HTMLElement, wait: ShellWait, now: n
   );
 }
 
-/** Nome do produto como logotipo em pixels (o texto fica para leitores de tela). */
+/** Nome do produto (Palestra Itália) como logotipo estilizado (o texto fica para leitores de tela). */
 export function wordmark(cls = 'ui-brand__name'): HTMLElement {
-  const el = h('span', { class: cls });
-  el.innerHTML = WORDMARK;
-  el.append(h('span', { class: 'ui-sr', text: 'Habblaud' }));
+  const el = h('span', { class: `${cls} ui-brand__palestra-italia` });
+  el.innerHTML = '<span class="ui-wm-palestra">PALESTRA</span><span class="ui-wm-italia">ITÁLIA</span>';
+  el.append(h('span', { class: 'ui-sr', text: 'Palestra Itália' }));
   return el;
 }

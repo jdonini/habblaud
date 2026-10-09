@@ -12,7 +12,7 @@ import type { UiContext } from './context';
 import { h, KeyedList, setAttr, setHidden, setStyleVar, setText, setTitle, setVariant } from './dom';
 import { FIVE_HOURS_MS, relativeTime, usageLevel, usageWindowView, WEEK_MS, type UsageWindowView } from './format';
 import { ICONS } from './icons';
-import { isCodex } from './provider';
+import { isCodex, providerIconUrl } from './provider';
 import { createAccountChip, createProviderTag, updateAccountChip, updateProviderTag } from './widgets';
 
 export const SOURCE_LABEL: Record<NonNullable<AccountInfo['usage']>['source'], string> = {
@@ -59,8 +59,10 @@ interface Meter {
 
 interface CardRefs {
   chip: HTMLElement;
+  vendorIcon: HTMLImageElement;
   flag: HTMLElement;
   name: HTMLElement;
+  planBadge: HTMLElement;
   prov: HTMLElement;
   email: HTMLElement;
   state: HTMLElement;
@@ -225,7 +227,12 @@ export class UsageCards {
     const chip = createAccountChip('lg');
     const flag = h('span', { class: 'ui-usage-card__flag', hidden: true, attrs: { 'aria-hidden': 'true' } });
     flag.innerHTML = ICONS.clock;
+    const vendorIcon = h('img', {
+      class: 'ui-usage-card__vendor-icon',
+      attrs: { alt: '', width: 14, height: 14, draggable: 'false' },
+    }) as HTMLImageElement;
     const name = h('span', { class: 'ui-usage-card__name' });
+    const planBadge = h('span', { class: 'ui-usage-card__plan', hidden: true });
     const prov = createProviderTag('ui-prov--xs');
     const email = h('span', { class: 'ui-usage-card__email' });
     const stateIcon = h('span', { class: 'ui-usage-card__state-icon', attrs: { 'aria-hidden': 'true' } });
@@ -261,13 +268,15 @@ export class UsageCards {
       { class: 'ui-usage-card', tabIndex: 0, attrs: { 'aria-describedby': tipId } },
       chip,
       flag,
-      h('div', { class: 'ui-usage-card__body' }, h('div', { class: 'ui-usage-card__head' }, name, prov, email, state), meters, msg),
+      h('div', { class: 'ui-usage-card__body' }, h('div', { class: 'ui-usage-card__head' }, vendorIcon, name, planBadge, prov, email, state), meters, msg),
       tip,
     );
     this.refs.set(card, {
       chip,
+      vendorIcon,
       flag,
       name,
+      planBadge,
       prov,
       email,
       state,
@@ -296,7 +305,15 @@ export class UsageCards {
     const codex = isCodex(a);
     updateAccountChip(r.chip, a);
     setStyleVar(card, '--acc', a.color);
+    r.vendorIcon.src = providerIconUrl(a.provider, a.id);
     setText(r.name, a.name);
+    if (a.plan) {
+      setText(r.planBadge, a.plan);
+      setHidden(r.planBadge, false);
+      setTitle(r.planBadge, `Plano da conta: ${a.plan}`);
+    } else {
+      setHidden(r.planBadge, true);
+    }
     updateProviderTag(r.prov, codex ? 'codex' : 'claude', a.name);
     setText(r.email, usageSubtitle(a));
     setAttr(card, 'aria-label', `${a.name}${codex ? ' (Codex)' : ''}: uso do plano`);

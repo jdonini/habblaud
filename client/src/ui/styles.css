@@ -651,7 +651,29 @@
 /* Logotipo em pixels: 47×8 px da placa da marca, em escala inteira (3×) para ficar nítido. */
 .ui-brand__name {
   display: block;
-  line-height: 0;
+  line-height: 1;
+}
+
+.ui-brand__palestra-italia {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-px);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.ui-brand__palestra-italia .ui-wm-palestra {
+  color: #00d170;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8), 0 0 8px rgba(0, 209, 112, 0.35);
+}
+
+.ui-brand__palestra-italia .ui-wm-italia {
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
 .ui-wordmark {
@@ -995,9 +1017,35 @@
   line-height: 14px;
 }
 
+.ui-usage-card__vendor-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  align-self: center;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+}
+
 .ui-usage-card__name {
   flex: none;
   font-weight: 650;
+}
+
+.ui-usage-card__plan {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px;
+  height: 15px;
+  border-radius: 3px;
+  font-size: 9.5px;
+  font-weight: 650;
+  line-height: 1;
+  background: rgba(124, 200, 255, 0.12);
+  color: #7cc8ff;
+  border: 1px solid rgba(124, 200, 255, 0.28);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
 }
 
 .ui-usage-card__email {

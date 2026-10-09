@@ -1,6 +1,20 @@
 // Parser incremental do transcript.jsonl do Antigravity CLI.
-import type { Activity, AgentStatus, TaskItem } from '../../../shared/types';
+import type { Activity, AgentStatus, AskQuestion, TaskItem } from '../../../shared/types';
 import { basename, truncate } from '../../../shared/activity';
+
+export interface AntigravitySubagentInvocation {
+  id: string;
+  role: string;
+  title?: string;
+  prompt?: string;
+  model?: string;
+}
+
+export interface AntigravityQuestionInfo {
+  id: string;
+  toolUseId: string;
+  questions: AskQuestion[];
+}
 
 export interface AntigravityStep {
   step_index: number;
@@ -21,6 +35,9 @@ export interface ParsedStepResult {
   status?: AgentStatus;
   waitingFor?: string;
   title?: string;
+  subagents?: AntigravitySubagentInvocation[];
+  subagentsDone?: boolean;
+  question?: AntigravityQuestionInfo;
 }
 
 function cleanStr(v: unknown): string {
@@ -52,6 +69,9 @@ export function parseAntigravityLine(rawLine: string, sessionId: string): Parsed
   const activities: Activity[] = [];
   let status: AgentStatus | undefined;
   let waitingFor: string | undefined;
+  let subagents: AntigravitySubagentInvocation[] | undefined;
+  let subagentsDone = false;
+  let question: AntigravityQuestionInfo | undefined;
 
   // 1. Mensagem do usuário
   if (step.type === 'USER_INPUT' && step.content) {
@@ -66,6 +86,7 @@ export function parseAntigravityLine(rawLine: string, sessionId: string): Parsed
         at,
       });
       status = 'working';
+      subagentsDone = true;
     }
   }
 
@@ -176,11 +197,21 @@ export function parseAntigravityLine(rawLine: string, sessionId: string): Parsed
             break;
           }
           case 'invoke_subagent': {
+            const rawSubs = Array.isArray(args.Subagents) ? args.Subagents : [];
+            subagents = rawSubs.map((s: Record<string, unknown>, idx: number) => ({
+              id: `antigravity:${sessionId}:sub:${step.step_index}:${idx}`,
+              role: cleanStr(s.Role || s.TypeName || 'Subagente'),
+              title: cleanStr(s.Prompt ? truncate(cleanStr(s.Prompt), 60) : s.Role || s.TypeName || 'Subagente'),
+              prompt: cleanStr(s.Prompt),
+              model: cleanStr(s.Model),
+            }));
+            const roles = subagents.map((s) => s.role).join(', ') || 'subagente';
             activities.push({
               id: toolId,
               kind: 'delegate',
               icon: '📦',
-              text: 'Disparando subagente',
+              text: truncate(`Disparando subagente (${roles})`, 46),
+              detail: subagents.map((s) => `${s.role}: ${s.prompt}`).join('\n') || undefined,
               tool: 'invoke_subagent',
               at,
             });
@@ -188,10 +219,39 @@ export function parseAntigravityLine(rawLine: string, sessionId: string): Parsed
           }
           case 'ask_question': {
             let qText = 'Pergunta interativa no terminal';
+            const mappedQuestions: AskQuestion[] = [];
             if (Array.isArray(args.questions) && args.questions.length > 0) {
-              const firstQ = args.questions[0];
-              if (firstQ && typeof firstQ === 'object' && 'question' in firstQ) {
-                qText = cleanStr((firstQ as { question: unknown }).question);
+              for (let qIdx = 0; qIdx < args.questions.length; qIdx++) {
+                const rawQ = args.questions[qIdx];
+                if (!rawQ || typeof rawQ !== 'object') continue;
+                const q = rawQ as Record<string, unknown>;
+                const text = cleanStr(q.question);
+                if (!text) continue;
+                if (qIdx === 0) qText = text;
+                const multi = q.is_multi_select === true || q.multiSelect === true;
+                const rawOpts = Array.isArray(q.options) ? q.options : [];
+                const opts: Array<{ index: number; label: string; description?: string }> = [];
+                for (let optIdx = 0; optIdx < rawOpts.length; optIdx++) {
+                  const opt = rawOpts[optIdx];
+                  if (typeof opt === 'string') {
+                    const lbl = cleanStr(opt);
+                    if (lbl) opts.push({ index: optIdx, label: lbl });
+                  } else if (opt && typeof opt === 'object') {
+                    const o = opt as Record<string, unknown>;
+                    const lbl = cleanStr(o.label || o.text || `Opção ${optIdx + 1}`);
+                    if (lbl) {
+                      const desc = cleanStr(o.description);
+                      opts.push({ index: optIdx, label: lbl, ...(desc ? { description: desc } : {}) });
+                    }
+                  }
+                }
+                mappedQuestions.push({
+                  index: qIdx,
+                  question: text,
+                  header: truncate(text, 30),
+                  multiSelect: multi,
+                  options: opts,
+                });
               }
             }
             activities.push({
@@ -205,6 +265,13 @@ export function parseAntigravityLine(rawLine: string, sessionId: string): Parsed
             });
             status = 'waiting';
             waitingFor = qText;
+            if (mappedQuestions.length > 0) {
+              question = {
+                id: `${sessionId}:${step.step_index}`,
+                toolUseId: toolId,
+                questions: mappedQuestions,
+              };
+            }
             break;
           }
           default: {
@@ -233,9 +300,10 @@ export function parseAntigravityLine(rawLine: string, sessionId: string): Parsed
       // Se concluiu a resposta textual e não tem tool_calls, o turno pode estar finalizando
       if (step.status === 'DONE') {
         status = 'idle';
+        subagentsDone = true;
       }
     }
   }
 
-  return { activities, status, waitingFor };
+  return { activities, status, waitingFor, subagents, subagentsDone, question };
 }

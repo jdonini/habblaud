@@ -259,25 +259,23 @@ export const ICONS = {
 
 export type IconKey = keyof typeof ICONS;
 
-/** Marca do Habblaud em pixels (usada quando /assets/brand/logo-mark.png não existe): prédio com janelas acesas. */
+/** Marca do Palestra Itália em pixels: estádio / arena de futebol com gramado e arquibancadas. */
 export const FALLBACK_MARK = pixelIcon(
   [
-    '.....######.....',
-    '.....#rrrr#.....',
-    '..############..',
-    '..#llllllllll#..',
-    '..#lwwlwwlbbl#..',
-    '..#lwwlwwlbbl#..',
-    '..#llllllllll#..',
-    '..#lbblwwlwwl#..',
-    '..#lbblwwlwwl#..',
-    '..#llllllllll#..',
-    '..#lwwlddlbbl#..',
-    '..#lwwlddlbbl#..',
-    '..#llllddllll#..',
-    '################',
+    '.....########.....',
+    '..###gggggggg###..',
+    '.#ggwwwwwwwwwwgg#.',
+    '#gwwggggggggggwwg#',
+    '#gwgwwwwwwwwwwgwg#',
+    '#gwgwgggcgggwgwg#',
+    '#gwgwgggcgggwgwg#',
+    '#gwgwwwwwwwwwwgwg#',
+    '#gwwggggggggggwwg#',
+    '.#ggwwwwwwwwwwgg#.',
+    '..###gggggggg###..',
+    '.....########.....',
   ],
-  { '#': '#2b3550', l: '#dfe6f2', r: '#ff8a5b', w: '#ffd36b', b: '#7cc8ff', d: '#3a4566' },
+  { '#': '#062013', g: '#006437', w: '#e8f5e9', c: '#ffffff' },
   'ui-px-icon ui-mark',
 );
 

@@ -104,8 +104,13 @@ export class AccountsService {
     for (const e of this.allEntries()) {
       const mine = files.filter((f) => this.fileMatches(e, f));
       const best = mine.reduce<StatuslineUsage | undefined>((acc, f) => (!acc || f.usage.fetchedAt > acc.usage.fetchedAt ? f : acc), undefined);
-      if (best) changed = this.usage.set(e.id, best.usage) || changed;
-      else changed = this.usage.clear(e.id, 'statusline') || changed;
+      if (best) {
+        changed = this.usage.set(e.id, best.usage) || changed;
+        if (best.plan && e.detected.plan !== best.plan) {
+          e.detected.plan = best.plan;
+          changed = true;
+        }
+      } else changed = this.usage.clear(e.id, 'statusline') || changed;
     }
     if (this.usageViewChanged()) changed = true;
     if (changed) this.opts.onChange();

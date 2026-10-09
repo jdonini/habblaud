@@ -475,4 +475,43 @@ describe('peças puras', () => {
       tmp.cleanup();
     }
   });
+
+  it('registerSynthetic e cancelSynthetic: registra pergunta sintética e resolve via callback', () => {
+    const { office, registry, clock } = setup();
+    let decidedOutcome: any;
+    const id = registry.registerSynthetic({
+      agentId: MAIN,
+      sessionId: SESSION,
+      tool: 'ask_question',
+      title: 'Pergunta sintética',
+      text: 'Qual o ambiente?',
+      icon: '❓',
+      questions: [
+        {
+          index: 0,
+          question: 'Qual o ambiente?',
+          options: [{ index: 0, label: 'Homolog' }, { index: 1, label: 'Prod' }],
+        },
+      ],
+      onDecision: (d) => {
+        decidedOutcome = d;
+      },
+    });
+
+    expect(id).toMatch(/^p-/);
+    const snap = snapAgent(office, MAIN);
+    expect(snap?.status).toBe('waiting');
+    expect(snap?.permission?.tool).toBe('ask_question');
+
+    // Não deve ser descartado como órfão no tick
+    clock.advance(10_000);
+    registry.tick();
+    expect(registry.size).toBe(1);
+
+    // Responder
+    const res = registry.decide(id, { behavior: 'answer', answers: [{ question: 0, options: [1] }] });
+    expect(res).toBe('ok');
+    expect(decidedOutcome).toEqual({ behavior: 'answer', answers: [{ question: 0, options: [1] }] });
+    expect(registry.size).toBe(0);
+  });
 });

@@ -96,3 +96,11 @@ export function codexApprovalLabel(policy: string | undefined): string {
   if (!policy) return '—';
   return CODEX_APPROVALS[policy] ?? policy;
 }
+
+/** Ícone oficial da ferramenta/fornecedor da conta (Anthropic, OpenAI, Antigravity, Copilot). */
+export function providerIconUrl(provider?: Provider, id?: string): string {
+  if (provider === 'antigravity' || id?.includes('antigravity')) return '/assets/brand/antigravity.svg';
+  if (provider === 'codex' || id?.includes('codex') || id?.includes('openai')) return '/assets/brand/openai.png';
+  if (id?.includes('copilot')) return '/assets/brand/copilot.png';
+  return '/assets/brand/anthropic.png';
+}

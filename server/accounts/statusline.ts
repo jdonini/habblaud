@@ -21,6 +21,7 @@ export interface StatuslineUsage {
   accountId?: string;
   configDir?: string;
   usage: AccountUsage;
+  plan?: string;
 }
 
 function str(v: unknown): string | undefined {
@@ -48,8 +49,10 @@ export function parseStatuslineFile(raw: string, file: string, now: number, mtim
   const out: StatuslineUsage = { file, usage };
   const accountId = str(r.accountId);
   const configDir = str(r.configDir);
+  const plan = str(r.plan);
   if (accountId) out.accountId = accountId;
   if (configDir) out.configDir = configDir;
+  if (plan) out.plan = plan;
   return out;
 }
 

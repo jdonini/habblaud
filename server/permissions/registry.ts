@@ -18,7 +18,7 @@
 import { randomBytes } from 'node:crypto';
 import { describeTool, maskSecrets, truncate } from '../../shared/activity';
 import { ANSWER_OTHER_MAX, answerSummary, ASK_TOOL, checkAnswers } from '../../shared/answers';
-import type { Activity, AgentInfo, PermissionAnswer, PermissionDecision, PermissionRequestInfo, PermissionSuggestionInfo } from '../../shared/types';
+import type { Activity, AgentInfo, AskQuestion, PermissionAnswer, PermissionDecision, PermissionRequestInfo, PermissionSuggestionInfo, Provider, TerminalInputKind } from '../../shared/types';
 import { errMsg, log } from '../log';
 import { toolView } from '../sources/terminal';
 import { codexToolView } from './codex';
@@ -86,6 +86,24 @@ export type SkipReason = 'no-viewers' | 'unknown-session' | 'unsupported-tool' |
 export type RegisterResult = { id: string; expiresAt: number } | { skip: SkipReason };
 export type ReleaseReason = 'terminal' | 'answered' | 'expired' | 'orphan' | 'gone' | 'shutdown';
 
+export interface SyntheticPermissionInput {
+  agentId: string;
+  sessionId: string;
+  tool: string;
+  title: string;
+  text: string;
+  icon?: string;
+  provider?: Provider;
+  input?: string;
+  inputKind?: TerminalInputKind;
+  subagent?: string;
+  questions?: AskQuestion[];
+  askFormat?: Array<AskFormat | undefined>;
+  suggestions?: PermissionSuggestionInfo[];
+  timeoutMs?: number;
+  onDecision?: (d: PermissionDecision) => void;
+}
+
 /**
  * Resposta de uma espera do hook. `answer`: as respostas por posição (o hook as troca pelos textos originais
  * do AskUserQuestion que recebeu do Claude Code).
@@ -141,6 +159,7 @@ interface Pending {
   idleSince: number;
   outcome?: Exclude<WaitResult, { status: 'pending' }>;
   resolvedAt?: number;
+  onDecision?: (d: PermissionDecision) => void;
 }
 
 type Rec = Record<string, unknown>;
@@ -157,9 +176,9 @@ function isIndex(v: unknown): v is number {
   return typeof v === 'number' && Number.isInteger(v) && v >= 0;
 }
 
-/** Pedido que se responde com `answer` (as perguntas do AskUserQuestion; o Codex não as manda pelo hook). */
+/** Pedido que se responde com `answer` (as perguntas do AskUserQuestion e ask_question; o Codex não as manda pelo hook). */
 function isQuestion(info: { tool: string; provider?: string }): boolean {
-  return info.tool === ASK_TOOL && info.provider !== 'codex';
+  return (info.tool === ASK_TOOL || info.tool === 'ask_question') && info.provider !== 'codex';
 }
 
 /** O Codex não aceita interromper nem "sempre permitir" (o hook dele só aprova ou recusa com motivo). */
@@ -436,6 +455,68 @@ export class PermissionRegistry {
     return { id, expiresAt: info.expiresAt + EXPIRY_GRACE_MS };
   }
 
+  /**
+   * Registra um pedido sintetizado (ex.: detectado no transcript do Antigravity).
+   * Não precisa de hook HTTP ativo e chama `onDecision` quando a decisão for tomada.
+   */
+  registerSynthetic(req: SyntheticPermissionInput): string {
+    const now = this.now();
+    const timeoutMs = req.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const id = `p-${now.toString(36)}-${++this.seq}-${randomBytes(9).toString('base64url')}`;
+    const info: PermissionRequestInfo = {
+      id,
+      tool: req.tool,
+      title: req.title,
+      text: req.text,
+      icon: req.icon ?? '❓',
+      createdAt: now,
+      expiresAt: now + timeoutMs,
+    };
+    if (req.provider) info.provider = req.provider;
+    if (req.input) info.input = req.input;
+    if (req.inputKind) info.inputKind = req.inputKind;
+    if (req.subagent) info.subagent = req.subagent;
+    if (req.suggestions?.length) info.suggestions = req.suggestions;
+    if (req.questions?.length) info.questions = req.questions;
+
+    const ask = isQuestion(info);
+    const p: Pending = {
+      info,
+      agentId: req.agentId,
+      sessionId: req.sessionId,
+      signature: '',
+      lastScanAt: 0,
+      waiters: new Set(),
+      idleSince: now,
+      onDecision: req.onDecision,
+    };
+    if (ask && req.questions) {
+      p.askFormat = req.askFormat ?? req.questions.map((q) => ({
+        multiSelect: q.multiSelect === true,
+        options: q.options.length,
+      }));
+    }
+    this.pending.set(id, p);
+
+    const first = info.questions?.[0]?.question;
+    if (first) {
+      const all = info.questions!.map((q) => q.question).join(' · ');
+      this.opts.office.addActivity(req.agentId, { id: `${req.agentId}#perm:${id}`, at: now, kind: 'wait', icon: '❓', text: truncate(`Pergunta: ${first}`, 46), detail: truncate(all, 300), tool: req.tool }, false);
+      this.opts.office.noticePermission(req.agentId, truncate(first, 120), 'question');
+    } else {
+      this.opts.office.addActivity(req.agentId, { id: `${req.agentId}#perm:${id}`, at: now, kind: 'wait', icon: '🔐', text: truncate(`Pede permissão: ${req.text}`, 46), detail: req.title, tool: req.tool }, false);
+      this.opts.office.noticePermission(req.agentId, req.text);
+    }
+    this.opts.office.markDirty();
+    return id;
+  }
+
+  cancelSynthetic(id: string, reason: ReleaseReason = 'answered'): void {
+    const p = this.pending.get(id);
+    if (!p || p.outcome) return;
+    this.release(p, reason);
+  }
+
   /** Detalhe completo de um pedido em aberto (com os argumentos), ou undefined. */
   detail(id: string): PermissionRequestInfo | undefined {
     const p = this.pending.get(id);
@@ -509,7 +590,7 @@ export class PermissionRegistry {
     if (d.message) outcome.message = d.message;
     if (d.interrupt) outcome.interrupt = true;
     if (d.suggestion !== undefined) outcome.suggestion = d.suggestion;
-    this.resolve(p, outcome);
+    this.resolve(p, outcome, d);
     const now = this.now();
     const act: Activity =
       d.behavior === 'allow'
@@ -527,7 +608,7 @@ export class PermissionRegistry {
     const questions = p.info.questions ?? [];
     const answers = checkAnswers(questions, raw);
     if (!answers || answers.some((a) => !fitsFormat(p.askFormat?.[a.question], a))) return 'invalid-answer';
-    this.resolve(p, { status: 'decided', behavior: 'answer', answers });
+    this.resolve(p, { status: 'decided', behavior: 'answer', answers }, { behavior: 'answer', answers });
     const act: Activity = { id: `${p.agentId}#perm-answer:${p.info.id}`, at: this.now(), kind: 'other', icon: '💬', text: 'Respondido no Habblaud', detail: answerSummary(questions, answers), tool: 'PermissionRequest' };
     this.opts.office.addActivity(p.agentId, act, false);
     return 'ok';
@@ -542,7 +623,7 @@ export class PermissionRegistry {
         continue;
       }
       if (now >= p.info.expiresAt + EXPIRY_GRACE_MS) this.release(p, 'expired');
-      else if (!p.waiters.size && now - p.idleSince >= this.orphanMs) this.release(p, 'orphan');
+      else if (!p.onDecision && !p.waiters.size && now - p.idleSince >= this.orphanMs) this.release(p, 'orphan');
       else if (!present(this.opts.office.get(p.agentId))) this.release(p, 'gone');
       // No Codex o terminal só pede a aprovação depois que o hook termina: não há resposta dada lá para procurar.
       else if (p.codex) continue;
@@ -633,10 +714,17 @@ export class PermissionRegistry {
     if (result) w.done(result);
   }
 
-  private resolve(p: Pending, outcome: Exclude<WaitResult, { status: 'pending' }>): void {
+  private resolve(p: Pending, outcome: Exclude<WaitResult, { status: 'pending' }>, decision?: PermissionDecision): void {
     p.outcome = outcome;
     p.resolvedAt = this.now();
-    const delivered = p.waiters.size > 0;
+    if (decision && p.onDecision) {
+      try {
+        p.onDecision(decision);
+      } catch (err) {
+        log.warn(`Erro no callback onDecision de permissão: ${errMsg(err)}`);
+      }
+    }
+    const delivered = p.waiters.size > 0 || (!!p.onDecision && outcome.status === 'decided');
     for (const w of [...p.waiters]) this.dropWaiter(p, w, outcome);
     // Entregue a quem esperava: some já; senão fica guardado até o hook voltar (ou RESOLVED_KEEP_MS).
     if (delivered) this.pending.delete(p.info.id);

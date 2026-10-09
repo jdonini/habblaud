@@ -99,7 +99,7 @@ export function isLocalHostname(hostname: string): boolean {
 
 /** Pedido que se responde escolhendo (as perguntas do AskUserQuestion), não aprovando. O Codex nunca pergunta. */
 export function isQuestionRequest(p: Pick<PermissionRequestInfo, 'tool' | 'questions' | 'provider'> | undefined): boolean {
-  return !!p && p.provider !== 'codex' && p.tool === ASK_TOOL && !!p.questions?.length;
+  return !!p && p.provider !== 'codex' && (p.tool === ASK_TOOL || p.tool === 'ask_question') && !!p.questions?.length;
 }
 
 /** O que está marcado numa pergunta do cartão: as opções (posições do original) e o "Outro" (marcado, e o texto). */
