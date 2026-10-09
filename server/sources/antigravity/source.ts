@@ -9,6 +9,7 @@ import type { AgentSource } from '../source';
 import { FileTail } from '../tail';
 import { activeConversationIds, antigravityTranscriptPath, readWorkspacesFromHistory } from './files';
 import { parseAntigravityLine } from './transcript';
+import { createAntigravityTerminalParser } from './terminal';
 
 interface ActiveTracker {
   conversationId: string;
@@ -67,6 +68,11 @@ export class AntigravitySource implements AgentSource {
     if (!tracker) return undefined;
     const p = antigravityTranscriptPath(this.opts.dir, tracker.conversationId);
     return existsSync(p) ? p : undefined;
+  }
+
+  terminalParser(agentId: string): TerminalParser | undefined {
+    const tracker = this.trackers.get(agentId);
+    return tracker ? createAntigravityTerminalParser(tracker.conversationId) : undefined;
   }
 
   private registerAccount(): void {

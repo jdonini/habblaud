@@ -148,3 +148,64 @@ describe('AntigravitySource', () => {
     }
   });
 });
+
+describe('AntigravityTerminalParser', () => {
+  it('converte etapas do transcript em TerminalEntry com pensamento, ferramentas e resultado', async () => {
+    const { createAntigravityTerminalParser } = await import('./terminal');
+    const parser = createAntigravityTerminalParser('conv-123');
+
+    // 1. Entrada do usuário
+    const userLine = JSON.stringify({
+      step_index: 0,
+      type: 'USER_INPUT',
+      content: '<USER_REQUEST>\nListe os arquivos\n</USER_REQUEST>',
+    });
+    const userEntries = parser.push(userLine);
+    expect(userEntries.length).toBe(1);
+    expect(userEntries[0].kind).toBe('user');
+    expect((userEntries[0] as any).text).toContain('Liste os arquivos');
+
+    // 2. Resposta do modelo com thinking e tool call
+    const modelLine = JSON.stringify({
+      step_index: 1,
+      type: 'PLANNER_RESPONSE',
+      thinking: 'Vou listar os arquivos usando ls',
+      tool_calls: [
+        {
+          name: 'run_command',
+          args: { CommandLine: 'ls -la' },
+        },
+      ],
+    });
+    const modelEntries = parser.push(modelLine);
+    expect(modelEntries.length).toBe(2);
+    expect(modelEntries[0].kind).toBe('thinking');
+    expect((modelEntries[0] as any).text).toContain('Vou listar os arquivos');
+    expect(modelEntries[1].kind).toBe('tool');
+    expect((modelEntries[1] as any).title).toContain('Bash(ls -la)');
+
+    // 3. Resultado da ferramenta
+    const resultLine = JSON.stringify({
+      step_index: 2,
+      type: 'GENERIC',
+      content: 'file1.txt\nfile2.txt',
+    });
+    const resEntries = parser.push(resultLine);
+    expect(resEntries.length).toBe(1);
+    expect(resEntries[0].kind).toBe('result');
+    expect((resEntries[0] as any).text).toContain('file1.txt');
+    expect((resEntries[0] as any).toolUseId).toBe('conv-123:1:tc:0');
+
+    // 4. Resposta final do assistente
+    const assistantLine = JSON.stringify({
+      step_index: 3,
+      type: 'PLANNER_RESPONSE',
+      content: 'Aqui estão os arquivos listados!',
+    });
+    const assistEntries = parser.push(assistantLine);
+    expect(assistEntries.length).toBe(1);
+    expect(assistEntries[0].kind).toBe('assistant');
+    expect((assistEntries[0] as any).text).toContain('Aqui estão os arquivos listados!');
+  });
+});
+
